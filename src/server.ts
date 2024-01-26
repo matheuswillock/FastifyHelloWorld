@@ -1,42 +1,50 @@
-import fastify, {RouteShorthandOptions} from 'fastify';
-import { Server, IncomingMessage, ServerResponse } from 'http';
+import fastify from 'fastify';
+import {PrismaClient} from "@prisma/client";
+import {z} from 'zod'
 
 const server = fastify({logger: true});
 
-const opts: RouteShorthandOptions = {
-    schema: {
-        response: {
-            200: {
-                type: 'object',
-                properties: {
-                    pong: {
-                        type: 'string'
-                    }
-                }
-            }
+// Criar a conexão com o BD
+const prisma = new PrismaClient();
+
+server.get('/', (response, reply) => {
+    return 'Hello World!'
+})
+
+server.get('/users', async () =>{
+    const users = await prisma.user.findMany()
+
+    return {users}
+})
+
+server.post('/users', async (request, reply) => {
+
+    const createUserSchema = z.object({
+        name: z.string(),
+        email: z.string().email(),
+    });
+
+    const {name, email} = createUserSchema.parse(request.body);
+
+    await prisma.user.create({
+        data: {
+            name,
+            email
         }
-    }
-}
+    })
 
-server.get('/', async (request, reply) => {
-    return {
-        message: 'hello world!'
-    };
-});
-
-server.get('/ping', opts, async (request, reply) => {
-    return {
-        pong: 'it worked!'
-    }
+    return reply.status(201).send()
 })
 
 const start = async () => {
     try {
-        await server.listen(3000);
-        server.log.info('Servidor iniciado em http://localhost:3000');
+        const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 
-        const address = server.server.address()
-        const port = typeof address === 'string' ? address : address?.port
+        await server.listen({
+            host: '0.0.0.0',
+            port: port
+        });
+        server.log.info(`Servidor iniciado em http://localhost:${port}`);
 
     } catch (exception) {
         server.log.error(exception);
@@ -44,4 +52,6 @@ const start = async () => {
     }
 };
 
-start()
+start().then(() =>{
+    console.log('Http Server Running')
+})
